@@ -5,40 +5,28 @@
   (loop [board {} x 0 y 0 data (seq string)]
     (cond
       (empty? data)
-      board
+        board
       (= (first data) \newline)
-      (recur board 0 (+ y 1) (rest data))
-
+        (recur board 0 (+ y 1) (rest data))
       (= (first data) \.)
-      (recur
-       (assoc board [x y] :empty)
-       (+ x 1) y (rest data))
-
+        (recur (assoc board [x y] :empty) (+ x 1) y (rest data))
       (= (first data) \space)
-      (recur board x y (rest data))
-
+        (recur board x y (rest data))
       (= (first data) \$)
-      (recur (assoc board [x y] :item) (+ x 1) y (rest data))
-
+        (recur (assoc board [x y] :item) (+ x 1) y (rest data))
       (= (first data) \@)
-      (recur (assoc board [x y] :me) (+ x 1) y (rest data))
-
+        (recur (assoc board [x y] :me) (+ x 1) y (rest data))
       (= (first data) \e)
-      (recur (assoc board [x y] :enemy) (+ x 1) y (rest data))
-
+        (recur (assoc board [x y] :enemy) (+ x 1) y (rest data))
       (= (first data) \#)
-      (recur board (+ x 1) y (rest data))
-
+        (recur board (+ x 1) y (rest data))
       (= (first data) \:)
-      (recur (assoc board [x y] :empty) (+ x 1) y (rest data))
-
+        (recur (assoc board [x y] :empty) (+ x 1) y (rest data))
       (re-find #"[A-Z]" (str (first data)))
-      (recur (assoc board [x y] :player) (+ x 1) y (rest data))
-
+        (recur (assoc board [x y] :player) (+ x 1) y (rest data))
       :else
-      (do
-        (println "BAD CHAR:" (first data))
-        (recur board x y (rest data))))))
+        (do (println "BAD CHAR:" (first data))
+            (recur board x y (rest data))))))
 
 (defn add-player [{:keys [url] :as state} name pass]
   (let [resp (try (http/get (str url "/api/add-player?name=" name "&pass=" pass))
@@ -82,27 +70,30 @@
 
 (defn direction [my-coords new-coords]
   ({[1 0]  "east"
-     [-1 0] "west"
-     [0 1]  "south"
-     [0 -1] "north"} (mapv - new-coords my-coords)))
+    [-1 0] "west"
+    [0 1]  "south"
+    [0 -1] "north"} (mapv - new-coords my-coords)))
 
 (defn make-valid-move [{:keys [board] :as state}]
   (let [my-coords (my-coordinates board)
         direction (->> (neighbors board my-coords)
                        (valid-moves)
                        (map first)
+                       (remove #(= % (:last-coords state)))
                        (random-element)
-                       (direction my-coords))]
+                       (direction my-coords))
+        new-state (assoc state :last-coords my-coords)]
     (if direction
       (do (println "move" direction)
-          (act state "move" direction))
-      (println "no valid move direction, or I am dead"))))
+          (act new-state "move" direction))
+      (do (println "no valid move direction, or I am dead")
+          new-state))))
 
 (defn -main [& [name pass]]
   {:pre [name pass]}
   (let [initial-state (add-player {:url "http://localhost:8080"} name pass)]
     (if (:name initial-state)
       (loop [state initial-state]
-        (recur (-> (next-board initial-state)
+        (recur (-> (next-board state)
                    (make-valid-move)))))
     (println "could not add player" name)))
